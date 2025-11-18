@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carta Pokémon TCG Dinámica</title>
+    <link href="https://fonts.googleapis.com/css?family=Fredoka+One|Open+Sans:700,400|Roboto:400,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="search-bar">
+        <input id="pok" type="text" placeholder="Escriba el nombre o número de Pokémon">
+        <button class="search-btn" onclick="traer()">Buscar</button>
+    </div>
+    <div class="error" id="error"></div>
+    <div class="card-tcg" id="tcg-card" style="display:none;">
+        <!-- Card will be rendered here -->
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+    // Colores por tipo
+    const typesColors = {
+        normal:      "#A8A77A",
+        fire:        "#EE8130",
+        water:       "#6390F0",
+        electric:    "#F7D02C",
+        grass:       "#7AC74C",
+        ice:         "#96D9D6",
+        fighting:    "#C22E28",
+        poison:      "#A33EA1",
+        ground:      "#D3B170",
+        flying:      "#A98FF3",
+        psychic:     "#F95587",
+        bug:         "#A6B91A",
+        rock:        "#B6A136",
+        ghost:       "#735797",
+        dragon:      "#6F35FC",
+        dark:        "#705746",
+        steel:       "#B7B7CE",
+        fairy:       "#D685AD"
+    };
+
+    function gradientForTypes(types) {
+        let color1 = typesColors[types[0]] || "#f5ce48";
+        let color2 = types.length > 1 ? (typesColors[types[1]] || "#f5ce48") : color1;
+        if (color1 === color2) {
+            return `background: linear-gradient(135deg, ${color1} 95%, #e2cb85 100%);`;
+        } else {
+            return `background: linear-gradient(135deg, ${color1} 65%, ${color2} 100%);`;
+        }
+    }
+
+    function typeButtonColor(type) {
+        let color = typesColors[type] || "#f5ce48";
+        let fontColor = ["flying","ice","fairy","water"].includes(type) ? "#222" : "#3c2a12";
+        return `background:${color};color:${fontColor};border-color:${color};`;
+    }
+
+    async function traer() {
+        document.getElementById("tcg-card").style.display = "none";
+        document.getElementById("error").textContent = "";
+        let pokemon = document.getElementById("pok").value.trim().toLowerCase();
+        if (!pokemon) {
+            document.getElementById("error").textContent = "Por favor escriba un nombre o número.";
+            return;
+        }
+        try {
+            let res = await axios.get(`https://pokeapi.co/api/v2/pokemon/${pokemon}`);
+            let poke = res.data;
+            let hpStat = poke.stats[0].base_stat;
+            let typesArr = poke.types.map(t=>t.type.name);
+
+            // FONDO DE CARTA DINÁMICO
+            document.getElementById("tcg-card").style = gradientForTypes(typesArr) +
+                "max-width:440px;margin:36px auto;border-radius:25px;border:5px solid #ccb53a;box-shadow:0 8px 28px #ccb53a66,0 2px 9px #ccb53a44;overflow:hidden;transition:background 0.6s;position:relative;";
+
+            // HEADER
+            let htmlCard = '<div class="card-header-tcg">';
+            htmlCard += `<span class="poke-tcg-name">${poke.name.charAt(0).toUpperCase() + poke.name.slice(1)}</span>`;
+            htmlCard += `<span class="poke-tcg-num">#${poke.id}</span>`;
+            htmlCard += `<span class="poke-tcg-hp">PS ${hpStat}</span>`;
+            htmlCard += `<span class="poke-tcg-types">`;
+            typesArr.forEach(t => {
+                htmlCard += `<span class="poke-tcg-type" style="${typeButtonColor(t)}">${t.toUpperCase()}</span>`;
+            });
+            htmlCard += `</span>`;
+            htmlCard += '</div>';
+
+            // IMAGEN
+            htmlCard += `<div class="card-pic-frame">
+                        <img class="poke-tcg-img" src="${poke.sprites.other["official-artwork"]["front_default"]}" alt="Imagen Pokémon">
+                </div>`;
+
+            // BODY
+            htmlCard += `<div class="card-body-tcg">`;
+            htmlCard += `<div class="poke-tcg-info">Altura: ${(poke.height/10).toFixed(1)} m &nbsp; Peso: ${(poke.weight/10).toFixed(1)} kg</div>`;
+
+            htmlCard += `<div class="poke-tcg-section-title">Habilidades</div>`;
+            htmlCard += `<div class="poke-tcg-abilities">`;
+            poke.abilities.slice(0,2).forEach(ab=>{
+                htmlCard += `<span>${ab.ability.name}</span>`;
+            });
+            htmlCard += `</div>`;
+
+            htmlCard += `<div class="poke-tcg-section-title">Movimientos Principales</div>`;
+            htmlCard += `<div class="poke-tcg-moves">`;
+            poke.moves.slice(0,2).forEach(mv=>{
+                htmlCard += `<span class="poke-tcg-move-btn">${mv.move.name.replace('-', ' ')}</span>`;
+            });
+            htmlCard += `</div>`;
+
+            // Estadísticas ESTILO TCG
+            htmlCard += `<div class="stats-title">Estadísticas</div>`;
+            poke.stats.forEach(st => {
+                htmlCard += `
+                    <div class="stat-row">
+                        <div class="stat-label">${st.stat.name.replace("-", " ")} : ${st.base_stat}/255</div>
+                        <div class="stat-bar-bg">
+                            <div class="stat-bar" style="width:${Math.min((st.base_stat/255)*100,100)}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            let specieRes = await axios.get(poke.species.url);
+            let specie = specieRes.data;
+            let desc = specie.flavor_text_entries.find(e=>e.language.name==="es");
+            let description = desc ? desc.flavor_text.replace(/\n|\f/g,' ') : 'Sin descripción en español';
+            htmlCard += `<div class="poke-tcg-footer">${description}</div>`;
+
+            htmlCard += `</div>`; // card-body-tcg
+
+            document.getElementById("tcg-card").innerHTML = htmlCard;
+            document.getElementById("tcg-card").style.display = "";
+        } catch(err){
+            document.getElementById("error").textContent = "Pokémon no encontrado.";
+        }
+    }
+    </script>
+</body>
+</html>
+<style>
+        body {
+            background: #fcf7ba;
+            font-family: 'Open Sans', Arial, sans-serif;
+        }
+        .search-bar {
+            text-align: center;
+            margin: 38px auto 20px auto;
+        }
+        #pok {
+            font-size: 1.08em;
+            border-radius: 9px;
+            border: 2px solid #dcc528;
+            padding: 12px 15px;
+            width: 220px;
+            background: #fff;
+            box-shadow: 0 2px 8px #dcc52822;
+            font-weight: bold;
+        }
+        .search-btn {
+            background: #f5ce48;
+            color: #423610;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 11px;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-left: 7px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px #dcc52855;
+            transition: background 0.2s;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .card-tcg {
+            max-width: 440px;
+            margin: 36px auto;
+            border-radius: 25px;
+            border: 5px solid #ccb53a;
+            box-shadow: 0 8px 28px #ccb53a66, 0 2px 9px #ccb53a44;
+            overflow: hidden;
+            transition: background 0.6s;
+            position: relative;
+        }
+        .card-header-tcg {
+            border-radius: 22px 22px 0 0;
+            background: rgba(255,255,255,0.13);
+            padding: 24px 25px 10px 25px;
+            display: flex;
+            align-items: center;
+            font-size: 1.15em;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .poke-tcg-name {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 2.1em;
+            color: #222;
+            letter-spacing: 1px;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+        .poke-tcg-num {
+            font-family: 'Roboto', sans-serif;
+            font-size: 1em;
+            color: #2D2D2D;
+            font-weight: 700;
+        }
+        .poke-tcg-hp {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 1.23em;
+            font-weight: bold;
+            margin-left: 12px;
+            background: #e5dfb6;
+            border-radius: 8px;
+            padding: 6px 18px;
+            box-shadow: 1px 2px 7px #ccb53a45;
+            color: #222;
+            border: 2px solid #dac472;
+            text-shadow: 1px 1px 0 #fffedb, 2px 2px 8px #dac47280;
+            letter-spacing: 1px;
+        }
+        .poke-tcg-types {
+            margin-left: 14px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+        .poke-tcg-type {
+            background: #f5ce48;
+            color: #3c2a12;
+            font-weight: bold;
+            font-size: 1em;
+            border-radius: 14px;
+            padding: 7px 18px;
+            border: 2px solid #dda722;
+            box-shadow: 1px 2px 6px #aa930f22;
+            margin: 0 0 6px 0;
+            font-family: 'Open Sans', Arial, sans-serif;
+            white-space: nowrap;
+            min-width: 70px;
+            text-align: center;
+        }
+        .card-pic-frame {
+            background: #e5e6e8;
+            border: 3px solid #b0a965;
+            margin: 10px 18px 6px 18px;
+            border-radius: 12px;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 16px #988e4d35;
+        }
+        .poke-tcg-img {
+            max-height: 160px;
+            max-width: 95%;
+            margin: auto;
+            display: block;
+            transition: transform 0.2s;
+        }
+        .poke-tcg-img:hover {
+            transform: scale(1.07);
+        }
+        .card-body-tcg {
+            background: #ffffffea;
+            border-radius: 0 0 22px 22px;
+            padding: 18px 18px 16px 24px;
+            min-height: 80px;
+        }
+        .poke-tcg-info {
+            font-size: 1.09em;
+            color: #5C481A;
+            font-style: italic;
+            margin-bottom: 8px;
+        }
+        .poke-tcg-section-title {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 1.38em;
+            color: #b48f2c;
+            margin: 15px 0 2px 0;
+            font-weight: bold;
+        }
+        .poke-tcg-abilities, .poke-tcg-moves {
+            margin-bottom: 10px;
+            margin-top: 3px;
+        }
+        .poke-tcg-move-btn {
+            background: #f8e38b;
+            color: #271801;
+            border-radius: 9px;
+            padding: 7px 19px;
+            margin: 0 5px 8px 0;
+            font-weight: 700;
+            font-size: 1em;
+            border: 2px solid #bba22b;
+            box-shadow: 1px 1px 3px #fdc92833;
+            display: inline-block;
+            font-family: 'Open Sans', Arial, sans-serif;
+        }
+        .poke-tcg-abilities span {
+            background: #ede1ac;
+            color: #261f11;
+            border-radius: 7px;
+            padding: 6px 14px;
+            margin-right: 6px;
+            border: 2px solid #ddc14e;
+            font-weight: bold;
+            font-size: 1em;
+            display: inline-block;
+        }
+
+        /* ---- ESTADISTICAS TCG ---- */
+        .stats-title {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 2em;
+            margin-bottom: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .stat-row {
+            margin-bottom: 18px;
+            text-align: left;
+            font-size: 1.12em;
+            font-family: 'Open Sans', sans-serif;
+        }
+        .stat-label {
+            display: block;
+            text-align: center;
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 1.15em;
+            margin-bottom: 4px;
+        }
+        .stat-bar-bg {
+            height: 20px;
+            background: #fff;
+            border-radius: 10px;
+            border: 2px solid #dac472;
+            margin: 0 0 3px 0;
+            width: 100%;
+            overflow: hidden;
+            box-shadow: 0 1px 5px #98801a22;
+        }
+        .stat-bar {
+            background: #dac472;
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.6s;
+        }
+
+        .poke-tcg-footer {
+            font-size: 1em;
+            font-style: italic;
+            color: #b19f56;
+            text-align: right;
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+        /* ----------------------------
+      📱 RESPONSIVIDAD
+----------------------------- */
+
+/* Tablets (pantallas medianas, < 768px) */
+@media (max-width: 768px) {
+
+    .card-tcg {
+        max-width: 90%;
+    }
+
+    .card-header-tcg {
+        font-size: 1em;
+        padding: 18px;
+    }
+
+    .poke-tcg-name {
+        font-size: 1.7em;
+    }
+
+    .poke-tcg-hp {
+        font-size: 1.05em;
+        padding: 5px 14px;
+    }
+
+    .card-pic-frame {
+        height: 160px;
+        margin: 10px 12px;
+    }
+
+    .poke-tcg-img {
+        max-height: 140px;
+    }
+}
+
+/* Celulares (pantallas pequeñas, < 480px) */
+@media (max-width: 480px) {
+
+    .search-bar {
+        padding: 0 15px;
+        margin-top: 20px;
+    }
+
+    #pok {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .search-btn {
+        width: 100%;
+        margin: 0;
+        margin-top: 8px;
+        padding: 12px 0;
+    }
+
+    .card-tcg {
+        max-width: 95%;
+        margin: 20px auto;
+    }
+
+    .card-header-tcg {
+        flex-direction: column;
+        text-align: center;
+        gap: 6px;
+        padding: 16px 12px;
+    }
+
+    .poke-tcg-name {
+        font-size: 1.45em;
+    }
+
+    .poke-tcg-hp {
+        margin-left: 0;
+        font-size: 1em;
+        padding: 5px 12px;
+    }
+
+    .poke-tcg-types {
+        justify-content: center;
+        margin-left: 0;
+    }
+
+    .poke-tcg-type {
+        font-size: .9em;
+        padding: 6px 12px;
+    }
+
+    .card-pic-frame {
+        height: 140px;
+        margin: 10px;
+    }
+
+    .poke-tcg-img {
+        max-height: 110px;
+    }
+
+    .poke-tcg-section-title {
+        font-size: 1.2em;
+        text-align: center;
+    }
+
+    .poke-tcg-info {
+        font-size: 1em;
+        text-align: center;
+    }
+
+    .stat-label {
+        font-size: .95em;
+    }
+
+    .poke-tcg-footer {
+        font-size: .9em;
+    }
+}
+
+    </style>
